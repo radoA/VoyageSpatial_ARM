@@ -1,0 +1,200 @@
+/*
+ * TP1-EX2.S
+ *
+ *  Created on: 16 Apr, 2016
+ *      Author: Rado Andriamahakajy
+ *		Groupe: 3.2
+ *			N°: 21105678
+ */
+
+
+		    .global _start
+_start:
+@ initialisation de N étoiles
+        		 mov r2,#0    		 @compteur jusqu a N
+        		 adr r0,etoiles
+		tq_init: cmp r2,#N
+        		 bhs f_init
+        		 bl SP_INIT_ETOILE
+        		 add r0,r0,#16
+        		 add r2, r2, #1
+        		 b tq_init
+ 		  f_init:
+
+@mettre à 0 le bit correspondant (x,y)
+@bl SP_ETEINDRE
+
+@ procède à 100 pas de simulations
+				mov r2,#0
+				adr r7,bitmap			@ &bitmap
+tq_simulation:	cmp r2,#100
+				bhs f_simulation
+				adr r0,etoiles			@ adresse début de étoiles
+				adr r12,Fin_etoiles		@ adresse fin de étoiles
+parcours_etoile:cmp r0,r12
+				bhi fin_parcours		@ va à fin_parcous dès qu'on a parcouru tout le tableau d'étoiles
+				mov r11,r0				@ sauvegarde de l'adresse du tableau
+				ldr r0,[r11,#X]			@ R0 <- X
+				ldr r1,[r11,#Y]			@ R1 <- Y
+				bl SP_ETEINDRE
+				mov r0,r11				@ R0 <- &etoiles
+				bl SP_DEPLACER_ETOILE
+				mov r11,r0				@ R0 <- &etoiles
+				ldr r0,[r11,#X]			@ R0 <- X
+				ldr r1,[r11,#Y]			@ R1 <- Y
+				bl SP_ALLUMER
+				mov r0,r11				@ R0 <- &etoiles
+				add r0,r0,#16
+				b parcours_etoile
+   fin_parcours:
+				add r2,r2,#1
+				b tq_simulation
+ f_simulation:
+exit: b exit
+
+
+
+SP_RANDOM:
+			@entree:r1 contient la valeur de n
+            @sortie:r5 contient le nombre pseudo aléatoire
+            stmfd r13! , {r4,r6-r12, r14}
+            ldr r12,z         			 @z
+            ldr r11,w         			 @w
+            ldr r10,=0xFFFF    			 @stoquage
+            and r9,r12,r10    		     @ (z & 0xFFFF)
+            and r8,r11,r10     			 @ (w & 0xFFFF)
+            ldr r7,=0x9069      		 @stoquage
+            ldr r6,=0x4650      		 @stoquage
+            mul r9,r7,r9              	 @ (0x9069*(z & 0xFFFF) )
+            add r9,r9,r12,lsr #16     	 @ (0x9069*(z & 0xFFFF) ) + (z>>16)
+            mul r8,r6,r8              	 @ (0x4650 * (w & 0xFFFF) )
+            add r8,r8,r11, lsr #16    	 @ (0x4650 * (w & 0xFFFF) ) + (w>>16)
+            str r9,z    				 @ maj de z
+            str r8,w    				 @ maj de w
+            ldr r12,z          			 @ nouvelle valeur de z
+            ldr r11,w          			 @ nouvelle valeur de w
+            orr r5, r11, r12, lsl #16    @ (w | (z << 16))
+            sub r4,r1,#1                 @ n-1, il faut que n soit une puissance de 2, sinon le calcul du reste ne marche pas
+            and r5,r5,r4                 @ (w | (z << 16)) & (n-1)
+            ldmfd r13! , {r4,r6-r12, r15}
+
+
+SP_INIT_ETOILE:
+				@entree:r0 contient l'adresse d'une étoile à initialiser
+				stmfd r13!, {r1-r3,r5,r6, r14}
+				mov r1,#8		@ n <-8 pour obtenir un nombre entre [0;7]
+				bl SP_RANDOM 	@ sortie: r5
+				mov r3, r5		@ t <- random[0,7] ; n=8
+				mov r1,#16		@ n <- 16 pour obtenir un nombre entre [0;15]
+				bl SP_RANDOM 	@ sortie: r5
+				sub r5,r5,#8	@ il faut le soustraire par -8 pour avoir le bon intervalle [-8,7]
+				str r5,[r0,#DX]	@ dx <- random[-8,7] ; n=16
+				ldr r2,[r0,#DX]	@ valeur de dx
+				mul r6,r3,r2	@ t * dx
+				add	r6,r6,#LARGEUR/2	@ t * dx + LARGEUR/2
+				str r6,[r0,#X]	@ x <- t * dx + LARGEUR/2
+
+				bl SP_RANDOM 	@ sortie: r5
+				sub r5,r5,#8	@ il faut le soustraire par -8 pour avoir le bon intervalle [-8,7]
+				str r5,[r0,#DY]	@ dy <- random[-8,7]
+				ldr r5,[r0,#DY] @ valeur de dy
+				mul r5,r3,r5	@ t * dy
+				add	r5,r5,#HAUTEUR/2	@ t * dx + HAUTEUR/2
+				str r5,[r0,#Y]	@ y <- t * dx + HAUTEUR/2
+				ldmfd r13!, {r1-r3,r5,r6, r15}
+
+
+SP_DEPLACER_ETOILE:
+				@entree:r0 contient l'adresse d'une étoile à déplacer
+				stmfd r13!, { r1-r6, r14}
+				ldr r1,[r0,#X]	@valeur de X
+				ldr r2,[r0,#Y]	@valeur de Y
+				ldr r3,[r0,#DX]	@valeur de DX
+				ldr r4,[r0,#DY]	@valeur de DY
+				add r1,r1,r3	@ X+DX
+				add r2,r2,R4	@ Y+DY
+				mov r5,#0		@ l'étoile ne dépasse pas de l'écran
+
+				cmp r1,#LARGEUR
+				bls finsilargeur
+				mov r5,#1		@ l'étoile dépasse l'écran
+				b finsihauteur
+   finsilargeur:
+				cmp r2,#HAUTEUR
+				bls finsihauteur
+				mov r5,#1		@ l'étoile dépasse l'écran
+   finsihauteur:
+
+				cmp r5,#1
+				bne deplacer_etoile		@ si l'étoile dépasse l'écran aller à deplacer_etoile
+				@ mettre l'étoile au milieu de l'écran
+				mov r6,#LARGEUR/2
+				str r6,[r0,#X]			@ X <- LARGEUR / 2
+				mov r6,#HAUTEUR/2
+				strb r6,[r0,#Y]			@ Y <- HAUTEUR / 2
+				b fin
+deplacer_etoile:
+				str r1,[r0,#X]			@ X <- X+DX
+				str r2,[r0,#Y]			@ Y <- Y+DY
+		  	fin:
+				ldmfd r13!, { r1-r6, r15}
+
+
+SP_ALLUMER:
+			@ entree: R0 : contient X
+			@ entree: R1 : contient Y
+			@ met à 1 le bit # de la bitmap
+			stmfd r13!, { r3-r9,r14}
+			mov r4,#7				@  8 - 1; //utile pour récuperer X modulo par 8, car 8= 2^3
+			and r5,r0,r4			@ reste <- X % 8; // ici X & (8-1)
+			sub r6,r4,r5			@ num_de_bit_a_changer <- 7 - reste;
+			adr r7,bitmap			@ &bitmap
+			mov r3,r0,lsr #3		@ numéro_octet à modifier <- X / 8;
+			add r7,r7,r1, lsl #4	@ ligne <- Y * 16; on avance à la ligne souhaité
+			ldrb r8,[r7,r3]!			@ on capture ce bloc d'octet
+										@ on avance au numéro d'octet souhaité (colonne) que l'on va modifier
+			mov r9,#0b1
+			mov r9,r9,lsl r6		@ (1 << num_de_bit_a_changer)
+			orr r9,r9,r8			@ (1 << num_de_bit_a_changer) | bloc octet lus
+			strb r9,[r7]			@ MAJ de la bitmap
+			ldmfd r13!, { r3-r9,r15}
+
+
+SP_ETEINDRE:
+			@ entree: R0 : contient X
+			@ entree: R1 : contient Y
+			@ met à 0 le bit # de la bitmap
+			stmfd r13!, { r2-r10,r14}
+			mov r4,#7				@  8 - 1; //utile pour récuperer X modulo par 8, car 8= 2^3
+			and r5,r0,r4			@ reste <- X % 8; // ici X & (8-1)
+			sub r6,r4,r5			@ num_de_bit_a_changer <- 7 - reste;
+			adr r7,bitmap			@ &bitmap
+			mov r3,r0,lsr #3		@ numéro_octet à modifier <- X / 8;
+			add r7,r7,r1, lsl #4	@ ligne <- Y * 16; on avance à la ligne souhaité
+			ldrb r8,[r7,r3]!			@ on capture le bloc d'octet
+										@ on avance au numéro d'octet souhaité (colonne) que l'on va modifier
+			mov r9,#0b1
+			mov r9,r9,lsl r6		@ (1 << num_de_bit_a_changer)
+			ldr r10,=0b11111111		@ ou 0xF
+			eor r9,r9,r10			@ (1 << num_de_bit_a_changer) (xor) bloc octet lus
+			and r9,r9,r8			@ (1 << num_de_bit_a_changer) & bloc octet lus
+			strb r9,[r7]			@ MAJ de la bitmap
+			ldmfd r13!, { r2-r10,r15}
+
+
+         z:  .int    0xCAFEBABE
+         w:  .int    0xB00FBEA6
+	     	 .equ LARGEUR, 128
+	     	 .equ HAUTEUR, 128
+	     	 .equ N, 4
+	     	 .equ X, 0
+	     	 .equ Y, 4
+	     	 .equ DX, 8
+	     	 .equ DY, 12
+	     	 .equ TAILLE, 16
+	     	 .equ N, 4
+	etoiles: .fill N*16, 1, 0
+	Fin_etoiles:
+	bitmap:  .fill (LARGEUR * HAUTEUR) / 8, 1, 0
+
+

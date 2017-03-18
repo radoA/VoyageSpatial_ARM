@@ -1,0 +1,29 @@
+/*
+ * TP1-EX2.S
+ *
+ *  Created on: 16 Apr, 2016
+ *      Author: rado
+ */
+
+
+	.global _start
+			.equ N, 10
+	tab:	.byte	10, 14, 3, 15, 6, 8, 2, 23	@total = 81 et moyenne = 10....
+	.align
+_start:
+	mov r1, #0
+	mov r2, #0	 @ (2)
+	adr r3, tab
+	mov r4, #0
+	mov r5, #0
+
+tq: cmp r2, #N 				@ (3)
+		bhs fin_tq 			@ sortie de boucle = r2>= N
+		ldrb r1, [r3,r2]	@  r1 = tab[i]
+		add r4, r4, r1	@r2 , r4 = r4 + tab[i]
+		add r2, r2, #1 		@incrémenter i
+		b	tq
+fin_tq:
+add r5, r4, LSR#3 @ r5 = r4/8
+exit:	b exit
+iohip
